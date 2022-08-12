@@ -9,6 +9,9 @@
 #include <wrl.h>
 #include <cassert>
 #include <dxgi.h>
+#include <profileapi.h>
+#include <thread>
+#include <chrono>
 
 using namespace Microsoft::WRL;
 
@@ -24,6 +27,7 @@ inline void ThrowIfFailed(HRESULT hResult) {
 HWND mainWindow;
 const UINT WIDTH = 1280;
 const UINT HEIGHT = 720;
+__int64 frequency;
 
 // wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618
 // If you need cmdLine in Unicode instead of ANSI, convert it with GetCommandLineW()
@@ -172,14 +176,41 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     vp.MaxDepth = 1.0f;
     d3dDeviceContext->RSSetViewports(1, &vp);
 
+    /// Timing
+    QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
+    __int64 startCounter;
+    double msPerCounter = 1000.0/(double)frequency;
+    QueryPerformanceCounter((LARGE_INTEGER*)&startCounter);
+    double startTimeMs = startCounter * msPerCounter;
+
+
     /// Window Main Loop
     MSG msg = { };
+    // Timer stuff
+    __int64 currentCounter{};
+    double currentTimeMs{};
+    __int64 newCurrentCounter{};
+    double newCurrentTimeMs{};
+    double delta{};
+
     while (msg.message != WM_QUIT) {
         if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
-            // do game stuff
+            // Start FPS timer
+            QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
+            currentTimeMs = currentCounter * msPerCounter;
+
+            /// Do game stuff...
+            std::this_thread::sleep_for(std::chrono::milliseconds (10));
+
+            // End FPS timer
+            QueryPerformanceCounter((LARGE_INTEGER*)&newCurrentCounter);
+            newCurrentTimeMs = newCurrentCounter * msPerCounter;
+            delta = newCurrentTimeMs - currentTimeMs;
+            double FPS = 1000 / delta;
+            std::cout << FPS << std::endl;
         }
     }
 
