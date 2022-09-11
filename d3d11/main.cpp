@@ -62,17 +62,6 @@ UINT boxIndices[] = {
         4, 3, 7
 };
 
-// Triangle Data
-Vertex triangleVertices[] = {
-        {XMFLOAT3(0.0f, 0.5f, 0.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)}, // bottom Left, red
-        {XMFLOAT3(0.45f, -0.5, 0.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f)}, // Top middle, green
-        {XMFLOAT3(-0.45f, -0.5f, 0.0f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f)} // bottom right, blue
-};
-UINT triIndices[] = {
-        0,1,2
-};
-
-
 
 XMVECTOR cameraPosition = XMVectorSet(0.0f, 0.0f, -10.0f, 1.0f);
 
@@ -106,22 +95,7 @@ HRESULT compileShader(LPCWSTR shaderLocation, LPCSTR target, LPCSTR entrypoint, 
     return hr;
 }
 
-void InitWindows() {
-
-}
-
-void InitDirectX() {
-
-}
-
-// wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618
-// If you need cmdLine in Unicode instead of ANSI, convert it with GetCommandLineW()
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, int nCmdShow) {
-
-    // Support for XM Math
-    if(!DirectX::XMVerifyCPUSupport()) return 0;
-
-    /// Initialize Window
+int InitWindows(HINSTANCE hInstance) {
     // Create Window Class with reference to WndProc handler
     WNDCLASS wc;
 
@@ -159,16 +133,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
         return -1;
     }
 
-    ShowWindow(mainWindow, nCmdShow);
-    UpdateWindow(mainWindow);
+    return 0;
+}
+
+ComPtr<ID3D11Device> d3dDevice;
+ComPtr<ID3D11DeviceContext> d3dDeviceContext;
+ComPtr<ID3D11RenderTargetView> rtv;
+ComPtr<IDXGISwapChain> swapChain;
+ComPtr<ID3D11DepthStencilView> depthStencilView;
+
+
+int InitDirectX() {
+    // Support for XM Math
+    if(!DirectX::XMVerifyCPUSupport()) return 0;
 
     UINT createDeviceFlags = 0;
 #if defined(DEBUG) || defined(_DEBUG)
     createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
     D3D_FEATURE_LEVEL featureLevel;
-    ComPtr<ID3D11Device> d3dDevice;
-    ComPtr<ID3D11DeviceContext> d3dDeviceContext;
+
 
     /// Initialize D3D Device & Device Context
     DX::ThrowIfFailed(D3D11CreateDevice(
@@ -181,7 +165,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
             &d3dDevice,
             &featureLevel,
             &d3dDeviceContext
-            ));
+    ));
 
     if(featureLevel != D3D_FEATURE_LEVEL_11_0) {
         MessageBox(nullptr, "Direct3D Feature Level 11 unsupported.", nullptr, 0);
@@ -192,7 +176,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     UINT m4xMsaaQuality;
     DX::ThrowIfFailed(d3dDevice->CheckMultisampleQualityLevels(
             DXGI_FORMAT_R8G8B8A8_UNORM, 4, &m4xMsaaQuality
-            ));
+    ));
     assert(m4xMsaaQuality > 0);
 
     DXGI_SWAP_CHAIN_DESC sd;
@@ -215,26 +199,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
 
     // Get IDXGIFactory used to create same d3dDevice
     ComPtr<IDXGIDevice> dxgiDevice;
-    DX::ThrowIfFailed(d3dDevice->QueryInterface(IID_PPV_ARGS(dxgiDevice.GetAddressOf())));
+    DX::ThrowIfFailed(d3dDevice->QueryInterface(IID_PPV_ARGS(&dxgiDevice)));
     ComPtr<IDXGIAdapter> dxgiAdapter;
-    DX::ThrowIfFailed(dxgiDevice->GetParent(IID_PPV_ARGS(dxgiAdapter.GetAddressOf())));
+    DX::ThrowIfFailed(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter)));
     ComPtr<IDXGIFactory> dxgiFactory;
-    DX::ThrowIfFailed(dxgiAdapter->GetParent(IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
+    DX::ThrowIfFailed(dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory)));
 
-    ComPtr<IDXGISwapChain> swapChain;
     dxgiFactory->CreateSwapChain(d3dDevice.Get(), &sd, &swapChain);
     //Disable ALT+ENTER fullscreen
     dxgiFactory->MakeWindowAssociation(mainWindow, DXGI_MWA_NO_WINDOW_CHANGES);
-    dxgiAdapter->Release();
-    dxgiDevice->Release();
+
 
     /// Back Buffer and Depth Buffer to OM stage
     //Create Back buffer Render Target View
-    ComPtr<ID3D11RenderTargetView> rtv;
     ComPtr<ID3D11Texture2D> backBuffer;
-    swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf()));
+    swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
     d3dDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, &rtv);
-    backBuffer->Release();
     //Create Depth/Stencil Buffer
     D3D11_TEXTURE2D_DESC depthStencilDesc;
     depthStencilDesc.Width = WIDTH;
@@ -248,8 +228,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     depthStencilDesc.MiscFlags = 0;
     depthStencilDesc.SampleDesc.Count = 4;
     depthStencilDesc.SampleDesc.Quality = m4xMsaaQuality-1;
+
+
     ComPtr<ID3D11Texture2D> depthStencilBuffer;
-    ComPtr<ID3D11DepthStencilView> depthStencilView;
     DX::ThrowIfFailed(d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &depthStencilBuffer));
     DX::ThrowIfFailed(d3dDevice->CreateDepthStencilView(depthStencilBuffer.Get(), nullptr, &depthStencilView));
     //Bind to OM stage
@@ -265,12 +246,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     vp.MaxDepth = 1.0f;
     d3dDeviceContext->RSSetViewports(1, &vp);
 
-    /// Timing
-    QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
-    __int64 startCounter;
-    double msPerCounter = 1000.0/(double)frequency;
-    QueryPerformanceCounter((LARGE_INTEGER*)&startCounter);
-    double startTimeMs = startCounter * msPerCounter;
+    return 0;
+}
+
+
+// wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618
+// If you need cmdLine in Unicode instead of ANSI, convert it with GetCommandLineW()
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, int nCmdShow) {
+
+    int initWindowsResult = InitWindows(hInstance);
+    if (initWindowsResult != 0) return initWindowsResult;
+
+    int initDirectXResult = InitDirectX();
+    if (initDirectXResult != 0) return initDirectXResult;
+
+
 
     /// Load Scene into GPU
     ComPtr<ID3DBlob> compiledPixelShader;
@@ -313,7 +303,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     D3D11_BUFFER_DESC vertexBufferDesc;
     vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
     vertexBufferDesc.ByteWidth = sizeof(Vertex) * 8;
-    //vertexBufferDesc.ByteWidth = sizeof(Vertex) * 3;
     vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vertexBufferDesc.CPUAccessFlags = 0;
     vertexBufferDesc.MiscFlags = 0;
@@ -321,7 +310,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
 
     D3D11_SUBRESOURCE_DATA vbufferData;
     vbufferData.pSysMem = boxVertices;
-    //vbufferData.pSysMem = triangleVertices;
 
     ComPtr<ID3D11Buffer> vb;
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&vertexBufferDesc, &vbufferData, &vb));
@@ -330,7 +318,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     CD3D11_BUFFER_DESC indexBufferDesc;
     indexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
     indexBufferDesc.ByteWidth = sizeof(UINT) * 36;
-    //indexBufferDesc.ByteWidth = sizeof(UINT) * 3;
     indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     indexBufferDesc.CPUAccessFlags = 0;
     indexBufferDesc.MiscFlags = 0;
@@ -338,7 +325,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
 
     D3D11_SUBRESOURCE_DATA ibufferData;
     ibufferData.pSysMem = boxIndices;
-    //ibufferData.pSysMem = triIndices;
 
     ComPtr<ID3D11Buffer> ib;
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&indexBufferDesc, &ibufferData, &ib));
@@ -384,10 +370,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     float theta = 0.0f;
     float radius = 5.0f;
 
-
+    ShowWindow(mainWindow, nCmdShow);
+    UpdateWindow(mainWindow);
     /// Window Main Loop
     MSG msg = { };
-    // Timer stuff
+
+    /// Timing
+    QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
+    __int64 startCounter;
+    double msPerCounter = 1000.0/(double)frequency;
+    QueryPerformanceCounter((LARGE_INTEGER*)&startCounter);
+    double startTimeMs = startCounter * msPerCounter;
+
     __int64 currentCounter{};
     double currentTimeMs{};
     __int64 newCurrentCounter{};
@@ -404,7 +398,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
             currentTimeMs = currentCounter * msPerCounter;
 
             /// Do game stuff...
-//             Update constant buffer
+            // Update constant buffer
             phi += degreeIncrementPhi;
             theta += degreeIncrementTheta;
             float x = radius * sinf(phi) * cosf(0);
@@ -428,7 +422,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
             d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
             d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             d3dDeviceContext->DrawIndexed(36, 0, 0);
-            //d3dDeviceContext->Draw(3, 0);
             DX::ThrowIfFailed(swapChain->Present(0, 0));
             DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
 
