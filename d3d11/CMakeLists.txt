@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_FLAGS -m64)
 set(CMAKE_CXX_FLAGS -m64)
 
-add_executable(Graphics11 WIN32 main.cpp)
+add_executable(Graphics11 WIN32 main.cpp Graphics.cpp Graphics.h)
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_definitions(Graphics11 PUBLIC -DDEBUG)
 endif()

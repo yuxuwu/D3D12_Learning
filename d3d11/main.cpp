@@ -3,6 +3,7 @@
 //
 
 #include "pch.h"
+#include "Graphics.h"
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "D3DCompiler.lib")
 
@@ -10,7 +11,6 @@ using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
 
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
 /// Globals
 HWND mainWindow;
@@ -95,173 +95,40 @@ HRESULT compileShader(LPCWSTR shaderLocation, LPCSTR target, LPCSTR entrypoint, 
     return hr;
 }
 
-int InitWindows(HINSTANCE hInstance) {
-    // Create Window Class with reference to WndProc handler
-    WNDCLASS wc;
+class BoxGraphics : public Graphics {
+public:
+    BoxGraphics(HINSTANCE pHinstance, const UINT& width, const UINT& height);
 
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
-    wc.cbClsExtra = 0;
-    wc.cbWndExtra = 0;
-    wc.hInstance = hInstance;
-    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-    wc.lpszMenuName = nullptr;
-    wc.lpszClassName = "BasicWndClass";
+    void InitGraphics();
+    void UpdateGraphics();
+    void RenderGraphics();
+private:
+    XMMATRIX world;
+    XMMATRIX view;
+    XMMATRIX proj;
+    XMMATRIX worldViewProj;
 
-    if(!RegisterClass(&wc)) {
-        MessageBox(nullptr, "Registration Failed", nullptr , 0);
-        return -1;
-    }
+    ComPtr<ID3D11InputLayout> inputLayout;
+    ComPtr<ID3D11Buffer> vb;
+    ComPtr<ID3D11Buffer> ib;
+    ComPtr<ID3D11Buffer> constantBuffer;
+    D3D11_MAPPED_SUBRESOURCE mappedBuffer;
 
-    mainWindow = CreateWindow(
-            "BasicWndClass",
-            "Graphics",
-            WS_OVERLAPPEDWINDOW,
-            0,
-            0,
-            WIDTH,
-            HEIGHT,
-            nullptr,
-            nullptr,
-            hInstance,
-            nullptr);
+    float phi = 0;
+    float theta = 0;
 
-    if (mainWindow == nullptr) {
-        MessageBox(nullptr, "Create Window FAILED", nullptr, 0);
-        return -1;
-    }
+    static constexpr float degreeIncrementPhi = .05f;
+    static constexpr float degreeIncrementTheta = .03f;
+    static constexpr float radius = 5.0f;
+};
 
-    return 0;
-}
+BoxGraphics::BoxGraphics(HINSTANCE pHinstance, const UINT& width, const UINT& height)
+    : Graphics(pHinstance, width, height)
+{ }
 
-ComPtr<ID3D11Device> d3dDevice;
-ComPtr<ID3D11DeviceContext> d3dDeviceContext;
-ComPtr<ID3D11RenderTargetView> rtv;
-ComPtr<IDXGISwapChain> swapChain;
-ComPtr<ID3D11DepthStencilView> depthStencilView;
-
-
-int InitDirectX() {
-    // Support for XM Math
-    if(!DirectX::XMVerifyCPUSupport()) return 0;
-
-    UINT createDeviceFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)
-    createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-    D3D_FEATURE_LEVEL featureLevel;
-
-
-    /// Initialize D3D Device & Device Context
-    DX::ThrowIfFailed(D3D11CreateDevice(
-            nullptr,
-            D3D_DRIVER_TYPE_HARDWARE,
-            nullptr,
-            createDeviceFlags,
-            nullptr, 0,
-            D3D11_SDK_VERSION,
-            &d3dDevice,
-            &featureLevel,
-            &d3dDeviceContext
-    ));
-
-    if(featureLevel != D3D_FEATURE_LEVEL_11_0) {
-        MessageBox(nullptr, "Direct3D Feature Level 11 unsupported.", nullptr, 0);
-        return -1;
-    }
-
-    /// Create Swap Chain
-    UINT m4xMsaaQuality;
-    DX::ThrowIfFailed(d3dDevice->CheckMultisampleQualityLevels(
-            DXGI_FORMAT_R8G8B8A8_UNORM, 4, &m4xMsaaQuality
-    ));
-    assert(m4xMsaaQuality > 0);
-
-    DXGI_SWAP_CHAIN_DESC sd;
-    sd.BufferDesc.Width = WIDTH;
-    sd.BufferDesc.Height = HEIGHT;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-    sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.BufferCount = 1;
-    sd.OutputWindow = mainWindow;
-    sd.Windowed = true;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    sd.Flags = 0;
-    // msaa
-    sd.SampleDesc.Count = 4;
-    sd.SampleDesc.Quality = m4xMsaaQuality-1;
-
-    // Get IDXGIFactory used to create same d3dDevice
-    ComPtr<IDXGIDevice> dxgiDevice;
-    DX::ThrowIfFailed(d3dDevice->QueryInterface(IID_PPV_ARGS(&dxgiDevice)));
-    ComPtr<IDXGIAdapter> dxgiAdapter;
-    DX::ThrowIfFailed(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter)));
-    ComPtr<IDXGIFactory> dxgiFactory;
-    DX::ThrowIfFailed(dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory)));
-
-    dxgiFactory->CreateSwapChain(d3dDevice.Get(), &sd, &swapChain);
-    //Disable ALT+ENTER fullscreen
-    dxgiFactory->MakeWindowAssociation(mainWindow, DXGI_MWA_NO_WINDOW_CHANGES);
-
-
-    /// Back Buffer and Depth Buffer to OM stage
-    //Create Back buffer Render Target View
-    ComPtr<ID3D11Texture2D> backBuffer;
-    swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
-    d3dDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, &rtv);
-    //Create Depth/Stencil Buffer
-    D3D11_TEXTURE2D_DESC depthStencilDesc;
-    depthStencilDesc.Width = WIDTH;
-    depthStencilDesc.Height = HEIGHT;
-    depthStencilDesc.MipLevels = 1;
-    depthStencilDesc.ArraySize = 1;
-    depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-    depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-    depthStencilDesc.CPUAccessFlags = 0;
-    depthStencilDesc.MiscFlags = 0;
-    depthStencilDesc.SampleDesc.Count = 4;
-    depthStencilDesc.SampleDesc.Quality = m4xMsaaQuality-1;
-
-
-    ComPtr<ID3D11Texture2D> depthStencilBuffer;
-    DX::ThrowIfFailed(d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &depthStencilBuffer));
-    DX::ThrowIfFailed(d3dDevice->CreateDepthStencilView(depthStencilBuffer.Get(), nullptr, &depthStencilView));
-    //Bind to OM stage
-    d3dDeviceContext->OMSetRenderTargets(1, rtv.GetAddressOf(), depthStencilView.Get());
-
-    /// Set Viewport
-    D3D11_VIEWPORT vp;
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width = static_cast<float>(WIDTH);
-    vp.Height = static_cast<float>(HEIGHT);
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-    d3dDeviceContext->RSSetViewports(1, &vp);
-
-    return 0;
-}
-
-
-// wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618
-// If you need cmdLine in Unicode instead of ANSI, convert it with GetCommandLineW()
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, int nCmdShow) {
-
-    int initWindowsResult = InitWindows(hInstance);
-    if (initWindowsResult != 0) return initWindowsResult;
-
-    int initDirectXResult = InitDirectX();
-    if (initDirectXResult != 0) return initDirectXResult;
-
-
-
+void BoxGraphics::InitGraphics() {
+    /// Prepare for drawing
+    // Bind Input Layout and Buffers
     /// Load Scene into GPU
     ComPtr<ID3DBlob> compiledPixelShader;
     ComPtr<ID3DBlob> compiledVertexShader;
@@ -272,9 +139,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     ComPtr<ID3D11VertexShader> basicVS;
 
     DX::ThrowIfFailed(d3dDevice->CreatePixelShader(compiledPixelShader->GetBufferPointer(),
-                                 compiledPixelShader->GetBufferSize(),
-                                 nullptr,
-                                 &basicPS));
+                                                   compiledPixelShader->GetBufferSize(),
+                                                   nullptr,
+                                                   &basicPS));
     DX::ThrowIfFailed(d3dDevice->CreateVertexShader(compiledVertexShader->GetBufferPointer(),
                                                     compiledVertexShader->GetBufferSize(),
                                                     nullptr,
@@ -285,19 +152,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     // Create Vertex input layout
     D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-             D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(XMFLOAT3),
-             D3D11_INPUT_PER_VERTEX_DATA, 0}
+                    D3D11_INPUT_PER_VERTEX_DATA, 0}
     };
-    ComPtr<ID3D11InputLayout> inputLayout;
     DX::ThrowIfFailed(d3dDevice->CreateInputLayout(
             vertexDesc,
             2,
             compiledVertexShader->GetBufferPointer(),
             compiledVertexShader->GetBufferSize(),
             &inputLayout));
-    compiledPixelShader->Release();
-    compiledVertexShader->Release();
 
     /// Create Vertex Buffer
     D3D11_BUFFER_DESC vertexBufferDesc;
@@ -311,7 +175,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     D3D11_SUBRESOURCE_DATA vbufferData;
     vbufferData.pSysMem = boxVertices;
 
-    ComPtr<ID3D11Buffer> vb;
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&vertexBufferDesc, &vbufferData, &vb));
 
     /// Create Index Buffer
@@ -326,15 +189,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     D3D11_SUBRESOURCE_DATA ibufferData;
     ibufferData.pSysMem = boxIndices;
 
-    ComPtr<ID3D11Buffer> ib;
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&indexBufferDesc, &ibufferData, &ib));
 
     // Create Constant Buffer
     /// World View Proj Matrices
-    XMMATRIX world = XMMatrixIdentity(); // Box Position
-    XMMATRIX view = XMMatrixLookAtLH(cameraPosition, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-    XMMATRIX proj = XMMatrixPerspectiveFovLH(0.25f*3.14f, static_cast<float>(WIDTH)/HEIGHT, 1.0f, 1000.0f);
-    XMMATRIX worldViewProj = world*view*proj;
+    world = XMMatrixIdentity(); // Box Position
+    view = XMMatrixLookAtLH(cameraPosition, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+    proj = XMMatrixPerspectiveFovLH(0.25f*3.14f, static_cast<float>(WIDTH)/HEIGHT, 1.0f, 1000.0f);
+    worldViewProj = world*view*proj;
     D3D11_BUFFER_DESC constantBufferDesc;
     constantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     constantBufferDesc.ByteWidth = sizeof(XMMATRIX);
@@ -349,29 +211,63 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     cbufferData.SysMemPitch = 0;
     cbufferData.SysMemSlicePitch = 0;
 
-    ComPtr<ID3D11Buffer> constantBuffer;
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&constantBufferDesc, &cbufferData, &constantBuffer));
 
 
-    D3D11_MAPPED_SUBRESOURCE mappedBuffer;
     DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer));
     d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
     CopyMemory(mappedBuffer.pData, &worldViewProj, sizeof(XMMATRIX));
     d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
 
-    /// Prepare for drawing
-    // Bind Input Layout and Buffers
+}
+
+void BoxGraphics::UpdateGraphics() {
+    // Update constant buffer
+    phi += degreeIncrementPhi;
+    theta += degreeIncrementTheta;
+    float x = radius * sinf(phi) * cosf(0);
+    float y = radius * sinf(phi) * sinf(0);
+    float z = radius * cos(phi);
+
+    view = XMMatrixLookAtLH(XMVectorSet(x, y, z, 1.0f), XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+    world =  XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(0, sinf(theta)/2, 0);
+    worldViewProj = XMMatrixTranspose(world * view * proj);
+    DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer));
+    CopyMemory(mappedBuffer.pData, &worldViewProj, sizeof(XMMATRIX));
+    d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
+    d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
+}
+
+void BoxGraphics::RenderGraphics() {
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
 
-    float degreeIncrementPhi = 0.05f;
-    float degreeIncrementTheta = 0.03f;
-    float phi = 0.0f;
-    float theta = 0.0f;
-    float radius = 5.0f;
+    // Draw
+    d3dDeviceContext->ClearRenderTargetView(rtv.Get(), blue);
+    d3dDeviceContext->ClearDepthStencilView(depthStencilView.Get(), D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    ShowWindow(mainWindow, nCmdShow);
-    UpdateWindow(mainWindow);
+    d3dDeviceContext->IASetInputLayout(inputLayout.Get());
+    d3dDeviceContext->IASetVertexBuffers(0, 1, vb.GetAddressOf(), &stride, &offset);
+    d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
+    d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    d3dDeviceContext->DrawIndexed(36, 0, 0);
+    DX::ThrowIfFailed(swapChain->Present(0, 0));
+    DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
+}
+
+
+// wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618
+// If you need cmdLine in Unicode instead of ANSI, convert it with GetCommandLineW()
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, int nCmdShow) {
+
+    BoxGraphics graphics(hInstance, WIDTH, HEIGHT);
+    int initWindowsResult = graphics.InitWindows();
+    if (initWindowsResult != 0) return initWindowsResult;
+
+    int initDirectXResult = graphics.InitDirectX();
+    if (initDirectXResult != 0) return initDirectXResult;
+
+
     /// Window Main Loop
     MSG msg = { };
 
@@ -388,6 +284,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     double newCurrentTimeMs{};
     double delta{};
 
+    graphics.InitGraphics();
+
     while (msg.message != WM_QUIT) {
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
@@ -398,34 +296,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
             currentTimeMs = currentCounter * msPerCounter;
 
             /// Do game stuff...
-            // Update constant buffer
-            phi += degreeIncrementPhi;
-            theta += degreeIncrementTheta;
-            float x = radius * sinf(phi) * cosf(0);
-            float y = radius * sinf(phi) * sinf(0);
-            float z = radius * cos(phi);
-
-            view = XMMatrixLookAtLH(XMVectorSet(x, y, z, 1.0f), XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-            world =  XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(0, sinf(theta)/2, 0);
-            worldViewProj = XMMatrixTranspose(world * view * proj);
-            DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer));
-            d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
-            CopyMemory(mappedBuffer.pData, &worldViewProj, sizeof(XMMATRIX));
-            d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
-
-            // Draw
-            d3dDeviceContext->ClearRenderTargetView(rtv.Get(), blue);
-            d3dDeviceContext->ClearDepthStencilView(depthStencilView.Get(), D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-            d3dDeviceContext->IASetInputLayout(inputLayout.Get());
-            d3dDeviceContext->IASetVertexBuffers(0, 1, vb.GetAddressOf(), &stride, &offset);
-            d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
-            d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            d3dDeviceContext->DrawIndexed(36, 0, 0);
-            DX::ThrowIfFailed(swapChain->Present(0, 0));
-            DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
-
-
+            graphics.UpdateGraphics();
+            graphics.RenderGraphics();
 
             std::this_thread::sleep_for(std::chrono::milliseconds (10));
 
@@ -434,22 +306,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
             newCurrentTimeMs = newCurrentCounter * msPerCounter;
             delta = newCurrentTimeMs - currentTimeMs;
             double FPS = 1000 / delta;
-            //std::cout << FPS << std::endl;
+            std::cout << FPS << std::endl;
         }
     }
 
     return (int)msg.wParam;
-}
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch(msg) {
-        case WM_KEYDOWN:
-            if(wParam == VK_ESCAPE)
-                DestroyWindow(mainWindow);
-            return 0;
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
-    }
-    return DefWindowProc(hWnd, msg, wParam, lParam);
 }

@@ -1,3 +1,6 @@
+#ifndef PCH_H
+#define PCH_H
+
 // STL
 #include <iostream>
 #include <stdexcept>
@@ -55,3 +58,5 @@ namespace DX {
         }
     }
 }
+
+#endif
