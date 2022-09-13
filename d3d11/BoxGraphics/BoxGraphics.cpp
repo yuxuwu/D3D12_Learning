@@ -2,10 +2,8 @@
 // Created by yuxuw on 8/4/2022.
 //
 
-#include "pch.h"
-#include "Graphics.h"
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "D3DCompiler.lib")
+#include "../pch.h"
+#include "../Graphics.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;

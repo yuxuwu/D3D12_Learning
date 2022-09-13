@@ -40,6 +40,10 @@
 #include "VertexTypes.h"
 #include "WICTextureLoader.h"
 
+
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "D3DCompiler.lib")
+
 namespace DX {
     inline void ThrowIfFailed(HRESULT hResult) {
         if (FAILED(hResult)) {
