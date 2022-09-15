@@ -183,6 +183,49 @@ Graphics::InitDirectX() {
     return 0;
 }
 
+int Graphics::Run() {
+    /// Timing
+    QueryPerformanceFrequency((LARGE_INTEGER*)&refreshFrequency);
+    __int64 startCounter;
+    double msPerCounter = 1000.0/(double)refreshFrequency;
+    QueryPerformanceCounter((LARGE_INTEGER*)&startCounter);
+    double startTimeMs = startCounter * msPerCounter;
+
+    __int64 currentCounter{};
+    double currentTimeMs{};
+    __int64 newCurrentCounter{};
+    double newCurrentTimeMs{};
+    double delta{};
+
+
+    MSG msg = {};
+    while (msg.message != WM_QUIT) {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        } else {
+            // Start FPS timer
+            QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
+            currentTimeMs = currentCounter * msPerCounter;
+
+            /// Do game stuff...
+            UpdateGraphics();
+            RenderGraphics();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds (10));
+
+            // End FPS timer
+            QueryPerformanceCounter((LARGE_INTEGER*)&newCurrentCounter);
+            newCurrentTimeMs = newCurrentCounter * msPerCounter;
+            delta = newCurrentTimeMs - currentTimeMs;
+            double FPS = 1000 / delta;
+            std::cout << FPS << std::endl;
+        }
+    }
+
+    return (int)msg.wParam;
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return _d3dDevice->WindowProc(hwnd, msg, wParam, lParam);
 

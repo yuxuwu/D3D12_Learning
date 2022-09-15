@@ -240,48 +240,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     int initDirectXResult = graphics.InitDirectX();
     if (initDirectXResult != 0) return initDirectXResult;
 
-
-    /// Window Main Loop
-    MSG msg = { };
-
-    /// Timing
-    QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
-    __int64 startCounter;
-    double msPerCounter = 1000.0/(double)frequency;
-    QueryPerformanceCounter((LARGE_INTEGER*)&startCounter);
-    double startTimeMs = startCounter * msPerCounter;
-
-    __int64 currentCounter{};
-    double currentTimeMs{};
-    __int64 newCurrentCounter{};
-    double newCurrentTimeMs{};
-    double delta{};
-
     graphics.InitGraphics();
 
-    while (msg.message != WM_QUIT) {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        } else {
-            // Start FPS timer
-            QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
-            currentTimeMs = currentCounter * msPerCounter;
-
-            /// Do game stuff...
-            graphics.UpdateGraphics();
-            graphics.RenderGraphics();
-
-            std::this_thread::sleep_for(std::chrono::milliseconds (10));
-
-            // End FPS timer
-            QueryPerformanceCounter((LARGE_INTEGER*)&newCurrentCounter);
-            newCurrentTimeMs = newCurrentCounter * msPerCounter;
-            delta = newCurrentTimeMs - currentTimeMs;
-            double FPS = 1000 / delta;
-            std::cout << FPS << std::endl;
-        }
-    }
-
-    return (int)msg.wParam;
+    return graphics.Run();
 }

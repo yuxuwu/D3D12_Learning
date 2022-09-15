@@ -21,6 +21,8 @@ public:
 
     int InitWindows();
     int InitDirectX();
+    int Run();
+
     virtual void InitGraphics() = 0;
     virtual void UpdateGraphics() = 0;
     virtual void RenderGraphics() = 0;
@@ -37,6 +39,7 @@ private:
     HWND mainWindow;
     UINT width;
     UINT height;
+    __int64 refreshFrequency;
 };
 
 
