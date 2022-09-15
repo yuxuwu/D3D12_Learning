@@ -63,35 +63,7 @@ UINT boxIndices[] = {
 
 XMVECTOR cameraPosition = XMVectorSet(0.0f, 0.0f, -10.0f, 1.0f);
 
-HRESULT compileShader(LPCWSTR shaderLocation, LPCSTR target, LPCSTR entrypoint, ID3DBlob** shaderBlob) {
-    DWORD shaderFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)
-    shaderFlags |= D3DCOMPILE_DEBUG;
-#endif
 
-    ComPtr<ID3DBlob> compilationMessages;
-
-    HRESULT hr = D3DCompileFromFile(
-            shaderLocation,
-            nullptr,
-            nullptr,
-            entrypoint,
-            target,
-            shaderFlags,
-            0,
-            shaderBlob,
-            &compilationMessages);
-
-    if (FAILED(hr)) {
-        if (compilationMessages.Get() != nullptr) {
-            MessageBox(nullptr, (char*) compilationMessages->GetBufferPointer(), nullptr, 0);
-            compilationMessages->Release();
-        }
-    }
-
-
-    return hr;
-}
 
 class BoxGraphics : public Graphics {
 public:
@@ -233,7 +205,6 @@ void BoxGraphics::UpdateGraphics() {
     DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer));
     CopyMemory(mappedBuffer.pData, &worldViewProj, sizeof(XMMATRIX));
     d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
-    d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
 }
 
 void BoxGraphics::RenderGraphics() {
@@ -248,7 +219,11 @@ void BoxGraphics::RenderGraphics() {
     d3dDeviceContext->IASetVertexBuffers(0, 1, vb.GetAddressOf(), &stride, &offset);
     d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
     d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
+
     d3dDeviceContext->DrawIndexed(36, 0, 0);
+
     DX::ThrowIfFailed(swapChain->Present(0, 0));
     DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
 }

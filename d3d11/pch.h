@@ -44,6 +44,36 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "D3DCompiler.lib")
 
+inline HRESULT compileShader(LPCWSTR shaderLocation, LPCSTR target, LPCSTR entrypoint, ID3DBlob** shaderBlob) {
+    DWORD shaderFlags = 0;
+#if defined(DEBUG) || defined(_DEBUG)
+    shaderFlags |= D3DCOMPILE_DEBUG;
+#endif
+
+    Microsoft::WRL::ComPtr<ID3DBlob> compilationMessages;
+
+    HRESULT hr = D3DCompileFromFile(
+            shaderLocation,
+            nullptr,
+            nullptr,
+            entrypoint,
+            target,
+            shaderFlags,
+            0,
+            shaderBlob,
+            &compilationMessages);
+
+    if (FAILED(hr)) {
+        if (compilationMessages.Get() != nullptr) {
+            MessageBox(nullptr, (char*) compilationMessages->GetBufferPointer(), nullptr, 0);
+            compilationMessages->Release();
+        }
+    }
+
+
+    return hr;
+}
+
 namespace DX {
     inline void ThrowIfFailed(HRESULT hResult) {
         if (FAILED(hResult)) {
