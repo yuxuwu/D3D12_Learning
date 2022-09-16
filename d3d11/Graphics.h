@@ -27,6 +27,8 @@ public:
     virtual void UpdateGraphics() = 0;
     virtual void RenderGraphics() = 0;
 
+    virtual void HandleCharKeys(WPARAM) = 0;
+
 protected:
     Microsoft::WRL::ComPtr<ID3D11Device> d3dDevice;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3dDeviceContext;

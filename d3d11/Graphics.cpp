@@ -6,8 +6,9 @@
 
 using Microsoft::WRL::ComPtr;
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 namespace {
-    Graphics* _d3dDevice = 0;
+    Graphics* _d3dApp = 0;
 }
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -16,7 +17,7 @@ Graphics::Graphics(HINSTANCE hInstance, UINT width, UINT height) :
     hInstance(hInstance),
     width(width),
     height(height)
-{ }
+{ _d3dApp = this; }
 
 int
 Graphics::InitWindows() {
@@ -64,16 +65,29 @@ Graphics::InitWindows() {
 }
 
 LRESULT Graphics::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
+    if (ImGui_ImplWin32_WndProcHandler(mainWindow, msg, wParam, lParam))
+        return true;
+
     switch(msg) {
+        case WM_CHAR:
+            HandleCharKeys(wParam);
+            return 0;
         case WM_KEYDOWN:
-            if(wParam == VK_ESCAPE)
-                DestroyWindow(mainWindow);
+            switch (wParam) {
+                case VK_ESCAPE:
+                    DestroyWindow(mainWindow);
+                    break;
+            }
+            return 0;
+        case WM_RBUTTONDOWN:
             return 0;
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
 int
@@ -180,6 +194,15 @@ Graphics::InitDirectX() {
     vp.MaxDepth = 1.0f;
     d3dDeviceContext->RSSetViewports(1, &vp);
 
+
+    /// Setup Imgui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+    ImGui_ImplWin32_Init(mainWindow);
+    ImGui_ImplDX11_Init(d3dDevice.Get(), d3dDeviceContext.Get());
     return 0;
 }
 
@@ -197,6 +220,7 @@ int Graphics::Run() {
     double newCurrentTimeMs{};
     double delta{};
 
+    bool showSimpleWindow{true};
 
     MSG msg = {};
     while (msg.message != WM_QUIT) {
@@ -208,9 +232,28 @@ int Graphics::Run() {
             QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
             currentTimeMs = currentCounter * msPerCounter;
 
+            // ImGui Stuff
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+
+            if (showSimpleWindow)
+            {
+                ImGui::Begin("Simple Window", &showSimpleWindow);
+                ImGui::Text("Hello from another window!");
+                if (ImGui::Button("Close Me"))
+                    showSimpleWindow = false;
+                ImGui::End();
+            }
+
             /// Do game stuff...
             UpdateGraphics();
             RenderGraphics();
+
+            ImGui::Render();
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+            DX::ThrowIfFailed(swapChain->Present(0, 0));
+            DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
 
             std::this_thread::sleep_for(std::chrono::milliseconds (10));
 
@@ -219,7 +262,7 @@ int Graphics::Run() {
             newCurrentTimeMs = newCurrentCounter * msPerCounter;
             delta = newCurrentTimeMs - currentTimeMs;
             double FPS = 1000 / delta;
-            std::cout << FPS << std::endl;
+            //std::cout << FPS << std::endl;
         }
     }
 
@@ -227,6 +270,5 @@ int Graphics::Run() {
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    return _d3dDevice->WindowProc(hwnd, msg, wParam, lParam);
-
+    return _d3dApp->WindowProc(hwnd, msg, wParam, lParam);
 }

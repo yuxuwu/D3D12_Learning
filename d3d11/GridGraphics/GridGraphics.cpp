@@ -21,6 +21,7 @@ public:
     void InitGraphics() override;
     void UpdateGraphics() override;
     void RenderGraphics() override;
+    void HandleCharKeys(WPARAM) override;
 
 private:
     ComPtr<ID3D11InputLayout> inputLayout;
@@ -194,6 +195,10 @@ void GridGraphics::RenderGraphics() {
     std::cout << (GridWidth-1) * (GridHeight-1) * 6 << std::endl;
     DX::ThrowIfFailed(swapChain->Present(0, 0));
     DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
+}
+
+void GridGraphics::HandleCharKeys(WPARAM wParam)
+{
 }
 
 

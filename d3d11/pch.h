@@ -40,6 +40,11 @@
 #include "VertexTypes.h"
 #include "WICTextureLoader.h"
 
+// ImGUI
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
+
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "D3DCompiler.lib")

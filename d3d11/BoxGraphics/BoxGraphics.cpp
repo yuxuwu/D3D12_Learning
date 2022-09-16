@@ -69,9 +69,11 @@ class BoxGraphics : public Graphics {
 public:
     BoxGraphics(HINSTANCE pHinstance, const UINT& width, const UINT& height);
 
-    void InitGraphics();
-    void UpdateGraphics();
-    void RenderGraphics();
+    void InitGraphics() override;
+    void UpdateGraphics() override;
+    void RenderGraphics() override;
+    void HandleCharKeys(WPARAM) override;
+
 private:
     XMMATRIX world;
     XMMATRIX view;
@@ -90,6 +92,14 @@ private:
     static constexpr float degreeIncrementPhi = .05f;
     static constexpr float degreeIncrementTheta = .03f;
     static constexpr float radius = 5.0f;
+
+    float cameraX = 0.0f;
+    float cameraY = 0.0f;
+    float cameraZ = -10.0f;
+
+    float upX = 0.0f;
+    float upY = 1.0f;
+    float upZ = 0.0f;
 };
 
 BoxGraphics::BoxGraphics(HINSTANCE pHinstance, const UINT& width, const UINT& height)
@@ -194,13 +204,13 @@ void BoxGraphics::InitGraphics() {
 void BoxGraphics::UpdateGraphics() {
     // Update constant buffer
     phi += degreeIncrementPhi;
-    theta += degreeIncrementTheta;
-    float x = radius * sinf(phi) * cosf(0);
-    float y = radius * sinf(phi) * sinf(0);
-    float z = radius * cos(phi);
+      theta += degreeIncrementTheta;
+//    float x = radius * sinf(phi) * cosf(0);
+//    float y = radius * sinf(phi) * sinf(0);
+//    float z = radius * cos(phi);
 
-    view = XMMatrixLookAtLH(XMVectorSet(x, y, z, 1.0f), XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-    world =  XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(0, sinf(theta)/2, 0);
+    view = XMMatrixLookAtLH(XMVectorSet(cameraX, cameraY, cameraZ, 1.0f), XMVectorZero(), XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f));
+    world = XMMatrixRotationY(theta * 3.14) * XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(0, sinf(theta)/2, 0);
     worldViewProj = XMMatrixTranspose(world * view * proj);
     DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer));
     CopyMemory(mappedBuffer.pData, &worldViewProj, sizeof(XMMATRIX));
@@ -223,9 +233,31 @@ void BoxGraphics::RenderGraphics() {
     d3dDeviceContext->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
 
     d3dDeviceContext->DrawIndexed(36, 0, 0);
+}
 
-    DX::ThrowIfFailed(swapChain->Present(0, 0));
-    DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
+void BoxGraphics::HandleCharKeys(WPARAM wParam) {
+    switch(wParam) {
+        case 'w':
+            /// Move camera forward
+            // Get forward vector
+
+            // Move camera position along forward vector
+            break;
+        case 's':
+            /// Move camera back
+            break;
+
+        case 'a':
+            /// Strafe camera left
+            // Cross forward and up vector to get side vector
+            // Move camera position along side vector
+            break;
+        case 'd':
+            /// Strafe camera right
+            break;
+        default:
+            return;
+    }
 }
 
 
@@ -241,6 +273,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdLine, i
     if (initDirectXResult != 0) return initDirectXResult;
 
     graphics.InitGraphics();
+
 
     return graphics.Run();
 }
