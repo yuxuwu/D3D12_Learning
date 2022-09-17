@@ -1,0 +1,13 @@
+{
+  "name": "asdf",
+  "version": "0",
+  "dependencies": [
+    "directxtk",
+    "directxmath",
+    {
+      "name": "imgui",
+      "default-features":  true,
+      "features": ["dx11-binding", "win32-binding"]
+    }
+  ]
+}
