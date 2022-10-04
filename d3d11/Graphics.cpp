@@ -3,6 +3,7 @@
 //
 
 #include "Graphics.h"
+#include <WindowsX.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -58,6 +59,11 @@ Graphics::InitWindows() {
         return -1;
     }
 
+    RECT clientDimensions;
+    GetClientRect(mainWindow, &clientDimensions);
+    clientWidth = clientDimensions.right - clientDimensions.left;
+    clientHeight = clientDimensions.bottom - clientDimensions.top;
+
     ShowWindow(mainWindow, SW_SHOW);
     UpdateWindow(mainWindow);
 
@@ -80,7 +86,18 @@ LRESULT Graphics::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
                     break;
             }
             return 0;
+        case WM_LBUTTONDOWN:
+        case WM_MBUTTONDOWN:
         case WM_RBUTTONDOWN:
+            HandleMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        case WM_LBUTTONUP:
+        case WM_MBUTTONUP:
+        case WM_RBUTTONUP:
+            HandleMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            return 0;
+        case WM_MOUSEMOVE:
+            HandleMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             return 0;
         case WM_DESTROY:
             PostQuitMessage(0);
@@ -128,8 +145,8 @@ Graphics::InitDirectX() {
     assert(m4xMsaaQuality > 0);
 
     DXGI_SWAP_CHAIN_DESC sd;
-    sd.BufferDesc.Width = width;
-    sd.BufferDesc.Height = height;
+    sd.BufferDesc.Width = clientWidth;
+    sd.BufferDesc.Height = clientHeight;
     sd.BufferDesc.RefreshRate.Numerator = 60;
     sd.BufferDesc.RefreshRate.Denominator = 1;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -165,8 +182,8 @@ Graphics::InitDirectX() {
     d3dDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, &rtv);
     //Create Depth/Stencil Buffer
     D3D11_TEXTURE2D_DESC depthStencilDesc;
-    depthStencilDesc.Width = width;
-    depthStencilDesc.Height = height;
+    depthStencilDesc.Width = clientWidth;
+    depthStencilDesc.Height = clientHeight;
     depthStencilDesc.MipLevels = 1;
     depthStencilDesc.ArraySize = 1;
     depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -188,8 +205,8 @@ Graphics::InitDirectX() {
     D3D11_VIEWPORT vp;
     vp.TopLeftX = 0.0f;
     vp.TopLeftY = 0.0f;
-    vp.Width = static_cast<float>(width);
-    vp.Height = static_cast<float>(height);
+    vp.Width = static_cast<float>(clientWidth);
+    vp.Height = static_cast<float>(clientHeight);
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     d3dDeviceContext->RSSetViewports(1, &vp);
@@ -220,7 +237,6 @@ int Graphics::Run() {
     double newCurrentTimeMs{};
     double delta{};
 
-    bool showSimpleWindow{true};
 
     MSG msg = {};
     while (msg.message != WM_QUIT) {
@@ -237,21 +253,13 @@ int Graphics::Run() {
             ImGui_ImplWin32_NewFrame();
             ImGui::NewFrame();
 
-            if (showSimpleWindow)
-            {
-                ImGui::Begin("Simple Window", &showSimpleWindow);
-                ImGui::Text("Hello from another window!");
-                if (ImGui::Button("Close Me"))
-                    showSimpleWindow = false;
-                ImGui::End();
-            }
 
             /// Do game stuff...
             UpdateGraphics();
             RenderGraphics();
+            RenderImgui();
 
-            ImGui::Render();
-            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
             DX::ThrowIfFailed(swapChain->Present(0, 0));
             DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
 

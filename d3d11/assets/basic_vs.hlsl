@@ -1,6 +1,7 @@
 // Globals
 cbuffer cbPerObject {
     float4x4 gWorldViewProj;
+    float4 offset;
 };
 
 // Typedefs
@@ -15,9 +16,8 @@ struct PixelInputType {
 
 PixelInputType VS(VertexInputType input) {
     PixelInputType output;
-
-    output.position = mul(float4(input.position.xyz, 1.0f), gWorldViewProj);
-    //output.position = float4(input.position, 1.0f);
+    float3 positionWithOffset = input.position + offset.xyz;
+    output.position = mul(float4(positionWithOffset.xyz, 1.0f), gWorldViewProj);
 
     output.color = input.color;
 

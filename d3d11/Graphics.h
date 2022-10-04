@@ -26,8 +26,12 @@ public:
     virtual void InitGraphics() = 0;
     virtual void UpdateGraphics() = 0;
     virtual void RenderGraphics() = 0;
+    virtual void RenderImgui() { };
 
-    virtual void HandleCharKeys(WPARAM) = 0;
+    virtual void HandleCharKeys(WPARAM) { };
+    virtual void HandleMouseDown(WPARAM, int, int) { };
+    virtual void HandleMouseUp(WPARAM, int, int) { };
+    virtual void HandleMouseMove(WPARAM, int, int) { };
 
 protected:
     Microsoft::WRL::ComPtr<ID3D11Device> d3dDevice;
@@ -41,6 +45,8 @@ private:
     HWND mainWindow;
     UINT width;
     UINT height;
+    UINT clientWidth;
+    UINT clientHeight;
     __int64 refreshFrequency;
 };
 
