@@ -95,9 +95,10 @@ private:
     ComPtr<ID3D11Buffer> constantBuffer;
     ComPtr<ID3D11Buffer> instanceBuffer;
     D3D11_MAPPED_SUBRESOURCE mappedConstantBuffer;
+    D3D11_MAPPED_SUBRESOURCE mappedInstanceBuffer;
 
-    float boxPhi = 0.0f;
-    float boxTheta = 0.0f;
+    VertexInstanced instanceData[3*3*3];
+
     static constexpr float degreeIncrementPhi = .02f;
     static constexpr float degreeIncrementTheta = .01f;
 
@@ -241,20 +242,20 @@ void BoxGraphics::InitGraphics() {
     instancedBufferDesc.MiscFlags = 0;
     instancedBufferDesc.StructureByteStride = 0;
 
-    VertexInstanced instanceData[3*3*3];
     unsigned int index = 0;
     for (int i = -1; i <= 1; ++i) {
         for (int j = -1; j <= 1; ++j) {
             for (int k = -1; k <= 1; ++k) {
 
                     // Update instanced buffer with world
-                    XMMATRIX world = XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f);// * // offset to make grid
+                    XMMATRIX world = XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f);// * // offset to make grid
                     instanceData[index] = {world};
                     index++;
 
             }
         }
     }
+
     D3D11_SUBRESOURCE_DATA instancedBufferData;
     instancedBufferData.pSysMem = instanceData;
     instancedBufferData.SysMemPitch = 0;
@@ -279,28 +280,34 @@ void BoxGraphics::InitGraphics() {
 }
 
 void BoxGraphics::UpdateGraphics() {
-    // Update constant buffer
-    boxPhi += degreeIncrementPhi;
-    boxTheta += degreeIncrementTheta;
-//    float x = radius * sinf(boxPhi) * cosf(0);
-//    float y = radius * sinf(boxPhi) * sinf(0);
-//    float z = radius * cos(boxPhi);
+    // Rotate instancedValues
+    unsigned int index = 0;
+    for (int i = -1; i <= 1; ++i) {
+        for (int j = -1; j <= 1; ++j) {
+            for (int k = -1; k <= 1; ++k) {
+                // Update instanced buffer with world
+                instanceData[index].world =  XMMatrixRotationY(.01) * instanceData[index].world;
+                index++;
+            }
+        }
+    }
 
+    DX::ThrowIfFailed(d3dDeviceContext->Map(instanceBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedInstanceBuffer));
+    CopyMemory(mappedInstanceBuffer.pData, instanceData, sizeof(instanceData));
+    d3dDeviceContext->Unmap(instanceBuffer.Get(), 0);
+
+    // Update the const buffer with new view/proj
     view = calculateViewMatrix();
+    ConstBuffer constBufferData = {view * proj};
+    DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantBuffer));
+    CopyMemory(mappedConstantBuffer.pData, &constBufferData, sizeof(ConstBuffer));
+    d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
 }
 
 void BoxGraphics::RenderGraphics() {
     // Draw
     d3dDeviceContext->ClearRenderTargetView(rtv.Get(), blue);
     d3dDeviceContext->ClearDepthStencilView(depthStencilView.Get(), D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-
-    // Update the const buffer with view proj
-    ConstBuffer constBuffer = {view * proj};
-    DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantBuffer));
-    CopyMemory(mappedConstantBuffer.pData, &constBuffer, sizeof(ConstBuffer));
-    d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
-
     d3dDeviceContext->DrawIndexedInstanced(36, 27, 0, 0, 0);
 
 }
@@ -389,9 +396,9 @@ void BoxGraphics::HandleMouseMove(WPARAM bDownButtons, int x, int y) {
     int deltaX = x - mousePositionX;
     int deltaY = y - mousePositionY;
 
-    // A change in X should correspond to a change in the horizontal axis (boxTheta)
+    // A change in X should correspond to a change in the horizontal axis (Theta)
     cameraForwardTheta += static_cast<float>(deltaX) * 0.025;
-    // A change in Y should correspond to a change in the vertical axis (boxPhi)
+    // A change in Y should correspond to a change in the vertical axis (Phi)
     cameraForwardPhi += static_cast<float>(deltaY) * 0.025;
 
     mousePositionX = x;
