@@ -1,13 +1,13 @@
 // Globals
 cbuffer cbPerObject {
-    float4x4 gViewProj;
+    row_major float4x4 gViewProj;
 };
 
 // Typedefs
 struct VertexInputType {
     float3 position : POSITION;
     float4 color : COLOR;
-    float4x4 World : WORLD;
+    row_major float4x4 World : WORLD;
     uint InstanceId : SV_InstanceId;
 };
 struct PixelInputType {

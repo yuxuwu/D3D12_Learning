@@ -166,13 +166,13 @@ void BoxGraphics::InitGraphics() {
              D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(XMFLOAT3),
              D3D11_INPUT_PER_VERTEX_DATA, 0},
-            {"WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4),
+            {"WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,
              D3D11_INPUT_PER_INSTANCE_DATA, 1},
-            {"WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+sizeof(XMFLOAT4),
+            {"WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT4),
              D3D11_INPUT_PER_INSTANCE_DATA, 1},
-            {"WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+2*sizeof(XMFLOAT4),
+            {"WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 2*sizeof(XMFLOAT4),
              D3D11_INPUT_PER_INSTANCE_DATA, 1},
-            {"WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+3*sizeof(XMFLOAT4),
+            {"WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 3*sizeof(XMFLOAT4),
              D3D11_INPUT_PER_INSTANCE_DATA, 1}
     };
     DX::ThrowIfFailed(d3dDevice->CreateInputLayout(
@@ -246,12 +246,12 @@ void BoxGraphics::InitGraphics() {
     for (int i = -1; i <= 1; ++i) {
         for (int j = -1; j <= 1; ++j) {
             for (int k = -1; k <= 1; ++k) {
-                if (!(i == 0 && j == 0 && k == 0)) {
+
                     // Update instanced buffer with world
-                    XMMATRIX world = XMMatrixTranspose(XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f));// * // offset to make grid
+                    XMMATRIX world = XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f);// * // offset to make grid
                     instanceData[index] = {world};
                     index++;
-                }
+
             }
         }
     }
@@ -260,7 +260,7 @@ void BoxGraphics::InitGraphics() {
     instancedBufferData.SysMemPitch = 0;
     instancedBufferData.SysMemSlicePitch = 0;
 
-    DX::ThrowIfFailed(d3dDevice->CreateBuffer(&instancedBufferDesc, 0, &instanceBuffer));
+    DX::ThrowIfFailed(d3dDevice->CreateBuffer(&instancedBufferDesc, &instancedBufferData, &instanceBuffer));
 
     /// Bind Input Layout + All Buffers
     ID3D11Buffer* vertexBuffers[2] = {vb.Get(), instanceBuffer.Get()};
@@ -296,7 +296,7 @@ void BoxGraphics::RenderGraphics() {
 
 
     // Update the const buffer with view proj
-    ConstBuffer constBuffer = {XMMatrixTranspose(view * proj)};
+    ConstBuffer constBuffer = {view * proj};
     DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantBuffer));
     CopyMemory(mappedConstantBuffer.pData, &constBuffer, sizeof(ConstBuffer));
     d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
