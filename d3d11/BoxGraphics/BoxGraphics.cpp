@@ -22,9 +22,12 @@ struct Vertex {
     XMFLOAT4 color;
 };
 
+struct VertexInstanced {
+    XMMATRIX world;
+};
+
 struct ConstBuffer {
-    XMMATRIX wvpMatrix;
-    XMFLOAT4 offset;
+    XMMATRIX vpMatrix;
 };
 
 // 3D Scene
@@ -83,15 +86,14 @@ public:
 private:
     XMMATRIX calculateViewMatrix();
 
-    XMMATRIX world;
     XMMATRIX view;
     XMMATRIX proj;
-    XMMATRIX worldViewProj;
 
     ComPtr<ID3D11InputLayout> inputLayout;
     ComPtr<ID3D11Buffer> vb;
     ComPtr<ID3D11Buffer> ib;
     ComPtr<ID3D11Buffer> constantBuffer;
+    ComPtr<ID3D11Buffer> instanceBuffer;
     D3D11_MAPPED_SUBRESOURCE mappedConstantBuffer;
 
     float boxPhi = 0.0f;
@@ -161,9 +163,17 @@ void BoxGraphics::InitGraphics() {
     // Create Vertex input layout
     D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-                    D3D11_INPUT_PER_VERTEX_DATA, 0},
+             D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(XMFLOAT3),
-                    D3D11_INPUT_PER_VERTEX_DATA, 0}
+             D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4),
+             D3D11_INPUT_PER_INSTANCE_DATA, 1},
+            {"WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+sizeof(XMFLOAT4),
+             D3D11_INPUT_PER_INSTANCE_DATA, 1},
+            {"WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+2*sizeof(XMFLOAT4),
+             D3D11_INPUT_PER_INSTANCE_DATA, 1},
+            {"WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(XMFLOAT3)+sizeof(XMFLOAT4)+3*sizeof(XMFLOAT4),
+             D3D11_INPUT_PER_INSTANCE_DATA, 1}
     };
     DX::ThrowIfFailed(d3dDevice->CreateInputLayout(
             vertexDesc,
@@ -200,13 +210,10 @@ void BoxGraphics::InitGraphics() {
 
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&indexBufferDesc, &ibufferData, &ib));
 
-    // Create Constant Buffer
-    /// World View Proj Matrices
-    world = XMMatrixIdentity(); // Box Position
+    /// Create Constant Buffer
+    // World View Proj Matrices
     view = calculateViewMatrix();
     proj = XMMatrixPerspectiveFovLH(0.25f*3.14f, static_cast<float>(WIDTH)/HEIGHT, 1.0f, 1000.0f);
-    worldViewProj = world*view*proj;
-    XMFLOAT4 offset = XMFLOAT4(5.0f, 5.0f, 5.0f, 0.0f);
 
     D3D11_BUFFER_DESC constantBufferDesc;
     constantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -216,7 +223,7 @@ void BoxGraphics::InitGraphics() {
     constantBufferDesc.MiscFlags = 0;
     constantBufferDesc.StructureByteStride = 0;
 
-    ConstBuffer constBuffer = {worldViewProj, offset};
+    ConstBuffer constBuffer = {view * proj};
 
     D3D11_SUBRESOURCE_DATA cbufferData;
     cbufferData.pSysMem = &constBuffer;
@@ -225,12 +232,47 @@ void BoxGraphics::InitGraphics() {
 
     DX::ThrowIfFailed(d3dDevice->CreateBuffer(&constantBufferDesc, &cbufferData, &constantBuffer));
 
-    /// Bind Input Layout, Vertex, Index, and Constant buffers
+    /// Create Instanced Buffer
+    D3D11_BUFFER_DESC instancedBufferDesc;
+    instancedBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    instancedBufferDesc.ByteWidth = sizeof(VertexInstanced) * 3*3*3;
+    instancedBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    instancedBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    instancedBufferDesc.MiscFlags = 0;
+    instancedBufferDesc.StructureByteStride = 0;
+
+    VertexInstanced instanceData[3*3*3];
+    unsigned int index = 0;
+    for (int i = -1; i <= 1; ++i) {
+        for (int j = -1; j <= 1; ++j) {
+            for (int k = -1; k <= 1; ++k) {
+                if (!(i == 0 && j == 0 && k == 0)) {
+                    // Update instanced buffer with world
+                    XMMATRIX world = XMMatrixTranspose(XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f));// * // offset to make grid
+                    instanceData[index] = {world};
+                    index++;
+                }
+            }
+        }
+    }
+    D3D11_SUBRESOURCE_DATA instancedBufferData;
+    instancedBufferData.pSysMem = instanceData;
+    instancedBufferData.SysMemPitch = 0;
+    instancedBufferData.SysMemSlicePitch = 0;
+
+    DX::ThrowIfFailed(d3dDevice->CreateBuffer(&instancedBufferDesc, 0, &instanceBuffer));
+
+    /// Bind Input Layout + All Buffers
+    ID3D11Buffer* vertexBuffers[2] = {vb.Get(), instanceBuffer.Get()};
+    unsigned int strides[2] = {sizeof(Vertex), sizeof(VertexInstanced)};
+    unsigned int offsets[2] = {0, 0};
+
     UINT stride = sizeof(Vertex);
     UINT vertexBufferOffset = 0;
     ID3D11Buffer* buffers[] = {constantBuffer.Get()};
     d3dDeviceContext->IASetInputLayout(inputLayout.Get());
-    d3dDeviceContext->IASetVertexBuffers(0, 1, vb.GetAddressOf(), &stride, &vertexBufferOffset);
+    // TODO: Update to set both vertex and instance buffer
+    d3dDeviceContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
     d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
     d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     d3dDeviceContext->VSSetConstantBuffers(0, sizeof(buffers)/sizeof(ID3D11Buffer*), buffers);
@@ -245,37 +287,22 @@ void BoxGraphics::UpdateGraphics() {
 //    float z = radius * cos(boxPhi);
 
     view = calculateViewMatrix();
-    world = XMMatrixRotationY(boxTheta * 3.14) * // lil rotation animation
-            XMMatrixRotationX(.1225 * 3.14) *  // constant tilt
-            XMMatrixTranslation(0, sinf(boxTheta) / 2, 0); //
-    worldViewProj = XMMatrixTranspose(world * view * proj);
 }
 
 void BoxGraphics::RenderGraphics() {
-
-
     // Draw
     d3dDeviceContext->ClearRenderTargetView(rtv.Get(), blue);
     d3dDeviceContext->ClearDepthStencilView(depthStencilView.Get(), D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    // Make a 3x3 cage of boxes
 
-    for (int i = -1; i <= 1; ++i) {
-        for (int j = -1; j <= 1; ++j) {
-            for (int k = -1; k <= 1; ++k) {
-                if (!(i == 0 && j == 0 && k == 0)) {
-                    // Update the const buffer with offset and wvp
-                    XMFLOAT4 vectorOffset = XMFLOAT4(i*5.0f, j*5.0f, k*5.0f, 0.0f);
-                    ConstBuffer constBuffer = {worldViewProj, vectorOffset};
-                    DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantBuffer));
-                    CopyMemory(mappedConstantBuffer.pData, &constBuffer, sizeof(ConstBuffer));
-                    d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
+    // Update the const buffer with view proj
+    ConstBuffer constBuffer = {XMMatrixTranspose(view * proj)};
+    DX::ThrowIfFailed(d3dDeviceContext->Map(constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantBuffer));
+    CopyMemory(mappedConstantBuffer.pData, &constBuffer, sizeof(ConstBuffer));
+    d3dDeviceContext->Unmap(constantBuffer.Get(), 0);
 
-                    d3dDeviceContext->DrawIndexed(sizeof(boxIndices)/sizeof(UINT), 0, 0);
-                }
-            }
-        }
-    }
+    d3dDeviceContext->DrawIndexedInstanced(36, 27, 0, 0, 0);
+
 }
 
 void BoxGraphics::RenderImgui() {
