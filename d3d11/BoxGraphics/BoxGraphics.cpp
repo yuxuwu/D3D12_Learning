@@ -5,6 +5,7 @@
 #include "../pch.h"
 #include "../Graphics.h"
 
+using namespace std;
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
@@ -99,8 +100,6 @@ private:
 
     VertexInstanced instanceData[3*3*3];
 
-    static constexpr float degreeIncrementPhi = .02f;
-    static constexpr float degreeIncrementTheta = .01f;
 
     float cameraPosition[4] = {0.0f, 0.0f, -10.0f, 1.0f};
     float cameraForwardPhi = 0.3f;
@@ -117,12 +116,13 @@ BoxGraphics::BoxGraphics(HINSTANCE pHinstance, const UINT& width, const UINT& he
 
 XMMATRIX BoxGraphics::calculateViewMatrix() {
     // Recalculate the forward vector
-//    float xCamera = sinf(cameraForwardPhi) * cosf(cameraForwardTheta);
-//    float yCamera = sinf(cameraForwardPhi) * sinf(cameraForwardTheta);
-//    float zCamera = sinf(cameraForwardPhi);
-//    cameraForward[0] = xCamera;
-//    cameraForward[1] = yCamera;
-//    cameraForward[2] = zCamera;
+    float xCamera = sinf(cameraForwardTheta) * sinf(cameraForwardPhi);
+    float yCamera = cosf(cameraForwardPhi);
+    float zCamera = cosf(cameraForwardTheta) * sinf(cameraForwardPhi);
+
+    cameraForward[0] = xCamera;
+    cameraForward[1] = yCamera;
+    cameraForward[2] = zCamera;
 
     return XMMatrixLookAtLH(
             XMVectorSet(
@@ -134,7 +134,7 @@ XMMATRIX BoxGraphics::calculateViewMatrix() {
            cameraPosition[0]+cameraForward[0],
            cameraPosition[1]+cameraForward[1],
            cameraPosition[2]+cameraForward[2],
-           0.0f),
+           1.0f),
            XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f));
 }
 
@@ -246,7 +246,6 @@ void BoxGraphics::InitGraphics() {
     for (int i = -1; i <= 1; ++i) {
         for (int j = -1; j <= 1; ++j) {
             for (int k = -1; k <= 1; ++k) {
-
                     // Update instanced buffer with world
                     XMMATRIX world = XMMatrixRotationX(.1225*3.14) * XMMatrixTranslation(i * 5.0f, j * 5.0f, k * 5.0f);// * // offset to make grid
                     instanceData[index] = {world};
@@ -267,12 +266,9 @@ void BoxGraphics::InitGraphics() {
     ID3D11Buffer* vertexBuffers[2] = {vb.Get(), instanceBuffer.Get()};
     unsigned int strides[2] = {sizeof(Vertex), sizeof(VertexInstanced)};
     unsigned int offsets[2] = {0, 0};
-
-    UINT stride = sizeof(Vertex);
-    UINT vertexBufferOffset = 0;
     ID3D11Buffer* buffers[] = {constantBuffer.Get()};
+
     d3dDeviceContext->IASetInputLayout(inputLayout.Get());
-    // TODO: Update to set both vertex and instance buffer
     d3dDeviceContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
     d3dDeviceContext->IASetIndexBuffer(ib.Get(), DXGI_FORMAT_R32_UINT, 0);
     d3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -281,15 +277,9 @@ void BoxGraphics::InitGraphics() {
 
 void BoxGraphics::UpdateGraphics() {
     // Rotate instancedValues
-    unsigned int index = 0;
-    for (int i = -1; i <= 1; ++i) {
-        for (int j = -1; j <= 1; ++j) {
-            for (int k = -1; k <= 1; ++k) {
-                // Update instanced buffer with world
-                instanceData[index].world =  XMMatrixRotationY(.01) * instanceData[index].world;
-                index++;
-            }
-        }
+    for (auto & i : instanceData) {
+        // Update instanced buffer with world
+        i.world =  XMMatrixRotationY(.01) * i.world;
     }
 
     DX::ThrowIfFailed(d3dDeviceContext->Map(instanceBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedInstanceBuffer));
@@ -313,7 +303,7 @@ void BoxGraphics::RenderGraphics() {
 }
 
 void BoxGraphics::RenderImgui() {
-    ImGui::Begin("Camera Controls", NULL ,ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("Camera Controls", nullptr ,ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::SliderFloat4("Camera Position", cameraPosition, -100.0f, 100.0f);
     ImGui::SliderFloat4("Camera Forward Vector", cameraForward, -2.0f, 2.0f);
     ImGui::Text("Mouse Position X: "); ImGui::SameLine();
@@ -392,7 +382,6 @@ void BoxGraphics::HandleMouseDown(WPARAM bDownButtons, int x, int y) {
 }
 
 void BoxGraphics::HandleMouseMove(WPARAM bDownButtons, int x, int y) {
-    /*
     int deltaX = x - mousePositionX;
     int deltaY = y - mousePositionY;
 
@@ -403,7 +392,6 @@ void BoxGraphics::HandleMouseMove(WPARAM bDownButtons, int x, int y) {
 
     mousePositionX = x;
     mousePositionY = y;
-     */
 }
 
 // wWinMain is specific to the VS compiler https://stackoverflow.com/a/38419618

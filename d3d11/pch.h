@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <cassert>
+#include <cmath>
 
 // Windows
 #include <windows.h>
