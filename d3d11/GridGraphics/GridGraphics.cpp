@@ -84,7 +84,7 @@ void GridGraphics::InitGraphics() {
     // Load Shaders
     ComPtr<ID3DBlob> compiledVertexShader;
     ComPtr<ID3DBlob> compiledPixelShader;
-    DX::ThrowIfFailed(compileShader(L"assets/basic_vs.hlsl", "vs_5_0", "VS", &compiledVertexShader));
+    DX::ThrowIfFailed(compileShader(L"assets/basic_vs_noinstance.hlsl", "vs_5_0", "VS", &compiledVertexShader));
     DX::ThrowIfFailed(compileShader(L"assets/basic_ps.hlsl", "ps_5_0", "PS", &compiledPixelShader));
 
     // Create Shaders
@@ -105,7 +105,7 @@ void GridGraphics::InitGraphics() {
     };
 
     DX::ThrowIfFailed(d3dDevice->CreateInputLayout(
-            inputLayoutDesc, sizeof(inputLayoutDesc)/sizeof(*inputLayoutDesc),
+            inputLayoutDesc, NUM(inputLayoutDesc),
             compiledVertexShader->GetBufferPointer(), compiledVertexShader->GetBufferSize(),
             &inputLayout));
 
@@ -192,7 +192,7 @@ void GridGraphics::RenderGraphics() {
 
     // Draw
     d3dDeviceContext->DrawIndexed((GridWidth-1) * (GridHeight-1) * 6, 0, 0);
-    std::cout << (GridWidth-1) * (GridHeight-1) * 6 << std::endl;
+    //std::cout << (GridWidth-1) * (GridHeight-1) * 6 << std::endl;
     DX::ThrowIfFailed(swapChain->Present(0, 0));
     DX::ThrowIfFailed(d3dDevice->GetDeviceRemovedReason());
 }

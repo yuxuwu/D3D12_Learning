@@ -50,6 +50,8 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "D3DCompiler.lib")
 
+#define NUM(a) (sizeof(a) / sizeof(*a))
+
 inline HRESULT compileShader(LPCWSTR shaderLocation, LPCSTR target, LPCSTR entrypoint, ID3DBlob** shaderBlob) {
     DWORD shaderFlags = 0;
 #if defined(DEBUG) || defined(_DEBUG)
